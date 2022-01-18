@@ -241,9 +241,13 @@ async def main(args):
             if shard_id not in chunks_by_shard:
                 chunks_by_shard[shard_id] = []
             shard_chunks = chunks_by_shard[shard_id]
-            if len(shard_chunks) != 0 and shard_chunks[-1]['min'] == ch['min']:
-                logging.warning(f"Found mergable chunks for shard '{shard_id}': [left: {shard_chunks[-1]}, right: {ch}]")
+            if len(shard_chunks) != 0 and shard_chunks[-1]['max'] == ch['min']:
+                sibling = shard_chunks[-1]
+                if (sibling['size'] + ch['size']) < target_chunk_size_kb * 1.33:
+                    logging.warning(f"Found mergable chunks for shard '{shard_id}':\n\tleft:  {shard_chunks[-1]}\n\tright: {ch}]\n")
+            shard_chunks.append(ch)
             progress.update(task, advance=1)
+
 
 if __name__ == "__main__":
     argsParser = argparse.ArgumentParser(
