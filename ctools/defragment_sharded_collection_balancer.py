@@ -173,8 +173,9 @@ async def main(args):
         table.add_row(shard_id, f"{stats['num_chunks']}", fmt_kb(stats['data_size']))
 
     logging.info(f"Total num chunks {total_num_chunks_prev}, Total coll size: {fmt_kb(total_data_size_prev)}")
-    small_chunk_size_threshould_kb = (args.defrag_chunk_size_mb * 1024 * 0.25)
-    logging.info(f"Small chunk size threashold: {fmt_kb(small_chunk_size_threshould_kb)}")
+    target_chunk_size_kb = args.defrag_chunk_size_mb * 1024
+    small_chunk_size_threshold_kb = target_chunk_size_kb * 0.25
+    logging.info(f"Target chunk size: {fmt_kb(target_chunk_size_kb)}, small chunk threshold: {fmt_kb(small_chunk_size_threshold_kb)}")
 
     console = Console()
     console.print(table)
@@ -213,7 +214,7 @@ async def main(args):
                 f"{fmt_kb(stats['data_size'])}", 
                 f"{size_delta_sign}{fmt_kb(abs(size_delta))}")
 
-    logging.info(f"Total num chunks {total_num_chunks_post} ({total_num_chunks_prev - total_num_chunks_post}), Total coll size: {fmt_kb(total_data_size_post)}")
+    logging.info(f"Total num chunks {total_num_chunks_post} ({total_num_chunks_post - total_num_chunks_prev}), Total coll size: {fmt_kb(total_data_size_post)}")
     console = Console()
     console.print(table)
 
@@ -229,7 +230,7 @@ async def main(args):
         async for ch in cluster.configDb.chunks.aggregate(chunks_agg):
             # Check size
             ch['size'] = await coll.data_size_kb_from_shard([ch['min'], ch['max']])
-            if ch['size'] <= small_chunk_size_threshould_kb:
+            if ch['size'] <= small_chunk_size_threshold_kb:
                 logging.warning(f"Found a remaining small chunk: {ch}")
             # Check sibling
             shard_id = ch['shard']
