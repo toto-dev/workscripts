@@ -228,10 +228,14 @@ async def main(args):
         task = progress.add_task("Checking chunks...", total=total_num_chunks_post)
 
         async for ch in cluster.configDb.chunks.aggregate(chunks_agg):
+
             # Check size
             ch['size'] = await coll.data_size_kb_from_shard([ch['min'], ch['max']])
             if ch['size'] <= small_chunk_size_threshold_kb:
                 logging.warning(f"Found a remaining small chunk: {ch}")
+            if ch['size'] > target_chunk_size_kb * 1.33:
+                logging.warning(f"Found a chunk too big: {ch}")
+
             # Check sibling
             shard_id = ch['shard']
             if shard_id not in chunks_by_shard:
