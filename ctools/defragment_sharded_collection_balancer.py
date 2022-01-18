@@ -9,16 +9,14 @@ from motor.frameworks.asyncio import is_event_loop
 import pymongo
 import sys
 import time
-import pickle
-from pprint import pprint
 
 from common import Cluster, yes_no
 from copy import deepcopy
 from pymongo import errors as pymongo_errors
-from tqdm import tqdm
 
 from rich.console import Console
 from rich.table import Table
+from rich.progress import Progress
 
 # Ensure that the caller is using python 3
 if (sys.version_info[0] < 3):
@@ -224,19 +222,23 @@ async def main(args):
     chunks_agg = [
             {'$match': coll.chunks_query_filter()},
             {'$sort': {'min': 1}}]
-    
-    async for ch in cluster.configDb.chunks.aggregate(chunks_agg):
-        # Check size
-        ch['size'] = await coll.data_size_kb_from_shard([ch['min'], ch['max']])
-        if ch['size'] <= small_chunk_size_threshould_kb:
-            logging.warning(f"Found a remaining small chunk: {ch}")
-        # Check sibling
-        shard_id = ch['shard']
-        if shard_id not in chunks_by_shard:
-            chunks_by_shard[shard_id] = []
-        shard_chunks = chunks_by_shard[shard_id]
-        if len(shard_chunks) != 0 and shard_chunks[-1]['min'] == ch['min']:
-            logging.warning(f"Found mergable chunks for shard '{shard_id}': [left: {shard_chunks[-1]}, right: {ch}]")
+
+    with Progress() as progress:
+        task = progress.add_task("Checking chunks...", total=total_num_chunks_post)
+
+        async for ch in cluster.configDb.chunks.aggregate(chunks_agg):
+            # Check size
+            ch['size'] = await coll.data_size_kb_from_shard([ch['min'], ch['max']])
+            if ch['size'] <= small_chunk_size_threshould_kb:
+                logging.warning(f"Found a remaining small chunk: {ch}")
+            # Check sibling
+            shard_id = ch['shard']
+            if shard_id not in chunks_by_shard:
+                chunks_by_shard[shard_id] = []
+            shard_chunks = chunks_by_shard[shard_id]
+            if len(shard_chunks) != 0 and shard_chunks[-1]['min'] == ch['min']:
+                logging.warning(f"Found mergable chunks for shard '{shard_id}': [left: {shard_chunks[-1]}, right: {ch}]")
+            progress.update(task, advance=1)
 
 if __name__ == "__main__":
     argsParser = argparse.ArgumentParser(
