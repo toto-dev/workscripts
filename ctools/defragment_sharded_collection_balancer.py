@@ -188,7 +188,6 @@ async def main(args):
         'chunkSize': args.defrag_chunk_size_mb,
     })
 
-
     await wait_for_defrag_completion()
 
     logging.info(f"""Defrag completed""")
@@ -220,6 +219,24 @@ async def main(args):
     console = Console()
     console.print(table)
 
+    # Check that defragmentation worked properly by inspecting the chunks 
+    chunks_by_shard = {}
+    chunks_agg = [
+            {'$match': coll.chunks_query_filter()},
+            {'$sort': {'min': 1}}]
+    
+    async for ch in cluster.configDb.chunks.aggregate(chunks_agg):
+        # Check size
+        ch['size'] = await coll.data_size_kb_from_shard([ch['min'], ch['max']])
+        if ch['size'] <= small_chunk_size_threshould_kb:
+            logging.warning(f"Found a remaining small chunk: {ch}")
+        # Check sibling
+        shard_id = ch['shard']
+        if shard_id not in chunks_by_shard:
+            chunks_by_shard[shard_id] = []
+        shard_chunks = chunks_by_shard[shard_id]
+        if len(shard_chunks) != 0 and shard_chunks[-1]['min'] == ch['min']:
+            logging.warning(f"Found mergable chunks for shard '{shard_id}': [left: {shard_chunks[-1]}, right: {ch}]")
 
 if __name__ == "__main__":
     argsParser = argparse.ArgumentParser(
