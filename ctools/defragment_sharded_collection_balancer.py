@@ -54,7 +54,7 @@ class ShardedCollection:
         coll_entry = await self.cluster.configDb.collections.find_one({'_id': self.name})
         if (coll_entry is None) or coll_entry.get('dropped', False):
             raise Exception(f"""Collection '{self.name}' does not exist""")
-        return coll_entry.get('balancerShouldMergeChunks', False)
+        return coll_entry.get('defragmentCollection', False)
 
     async def data_size_kb_per_shard(self):
         """Returns an dict:
@@ -183,7 +183,7 @@ async def main(args):
     logging.info(f"""Starting defrag""")
     await cluster.adminDb.command({
         'configureCollectionBalancing': args.ns,
-        'balancerShouldMergeChunks': True,
+        'defragmentCollection': True,
         'chunkSize': args.defrag_chunk_size_mb,
     })
 
