@@ -16,7 +16,7 @@ from pymongo import errors as pymongo_errors
 
 from rich.console import Console
 from rich.table import Table
-from rich.progress import Progress
+from rich.progress import Progress, BarColumn, TimeRemainingColumn
 
 # Ensure that the caller is using python 3
 if (sys.version_info[0] < 3):
@@ -187,8 +187,35 @@ async def main(args):
         'defragmentCollection': True,
         'chunkSize': args.defrag_chunk_size_mb,
     })
+    
+    with Progress(
+            "[progress.description]{task.description}",
+            BarColumn(),
+            "[progress.percentage]{task.completed}/{task.total} {task.percentage:>3.0f}%",
+            TimeRemainingColumn(),
+            transient=True) as progress:
+        current_phase = "None"
+        last_remaining_chunks = 0
+        task = progress.add_task(f"Defragmenting", start=False)
 
-    await wait_for_defrag_completion()
+        bstatus = await coll.balancer_status()
+        while(bstatus['balancerCompliant'] == False and bstatus['firstComplianceViolation'] == 'defragmentingChunks'):
+            #progress.console.print(f"Status {bstatus}")
+            if 'details' in bstatus:
+                phase = bstatus['details']['currentPhase']
+
+                if phase != "None":
+                    remaining_chunks = bstatus['details']['progress']['remainingChunksToProcess']
+                    if phase != current_phase:
+                        current_phase = phase
+                        last_remaining_chunks = remaining_chunks
+                        progress.start_task(task)
+                        progress.update(task, description=f"Defragmenting... {current_phase}", total=last_remaining_chunks, completed=0, refresh=True)
+                    else:
+                        progress.update(task, completed=(last_remaining_chunks-remaining_chunks), refresh=True)
+
+            await asyncio.sleep(0.2)
+            bstatus = await coll.balancer_status()
 
     logging.info(f"""Defrag completed""")
     table = Table(title="Shard stats After")
