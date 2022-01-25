@@ -50,11 +50,12 @@ class ShardedCollection:
         else:
             return {'ns': self.name}
 
+    async def balancer_status(self):
+        return await self.cluster.adminDb.command({'balancerCollectionStatus': self.name}) 
+    
     async def is_defragmenting(self):
-        coll_entry = await self.cluster.configDb.collections.find_one({'_id': self.name})
-        if (coll_entry is None) or coll_entry.get('dropped', False):
-            raise Exception(f"""Collection '{self.name}' does not exist""")
-        return coll_entry.get('defragmentCollection', False)
+        status = await self.balancer_status()
+        return 'firstComplianceViolation' in status and status['firstComplianceViolation'] == 'defragmentingChunks'
 
     async def data_size_kb_per_shard(self):
         """Returns an dict:
