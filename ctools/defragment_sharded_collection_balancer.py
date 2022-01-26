@@ -204,7 +204,8 @@ async def main(args):
             if 'details' in bstatus:
                 phase = bstatus['details']['currentPhase']
 
-                if phase != "None":
+                if phase != "none":
+                    assert 'progress' in bstatus['details'] , f"progress information not found in {bstatus}"
                     remaining_chunks = bstatus['details']['progress']['remainingChunksToProcess']
                     if phase != current_phase:
                         current_phase = phase
